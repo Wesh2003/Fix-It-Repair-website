@@ -73,5 +73,7 @@ npm run build
 2. Reference Jira keys in commits/PRs when applicable (e.g. `SCRUM-12`).
 3. Open a PR; CI will run once workflows are added under `.github/workflows/`.
 
-## Quick starter code: to be executed on the main project branch
+## Quick starter code: to be executed on the main project source branch terminal
+```powershell
 powershell -ExecutionPolicy Bypass -File .\start-fixit.ps1
+```
