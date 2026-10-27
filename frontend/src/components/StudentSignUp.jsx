@@ -1,70 +1,127 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { apiRequest } from '../api';
 import '../css/UserSignUp.css';
 
-function StudentSignUp() {
-  const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    password: '',
-  });
+const initialForm = {
+  username: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  password: '',
+};
 
+function StudentSignUp() {
+  const [formData, setFormData] = useState(initialForm);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((previous) => ({ ...previous, [name]: value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
     try {
-      const response = await fetch('http://127.0.0.1:5000/userregister', {
+      await apiRequest('/users/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
       });
-      if (response.ok) {
-        alert("User registered successfully!");
-        navigate('/studentlogin');
-      } else {
-        const errorData = await response.json();
-        console.error('Signup failed:', errorData.error || 'Unknown error');
-      }
-    } catch (error) {
-      console.error('Signup error:', error);
+      navigate('/studentlogin', {
+        replace: true,
+        state: { message: 'Your student account is ready. Please log in.' },
+      });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className='signup-form-container'>
-      <h2 className='sign-heading'>User Sign Up</h2>
-      <form onSubmit={handleSubmit}>
-        <div classname="form-group">
-          <label className='signup-label' htmlFor='first_name'>First Name:</label>
-          <input className='signup-input' type='text' id='first_name' name='first_name' value={formData.first_name} onChange={handleChange} required />
-        </div>
-        <div classname="form-group">
-          <label className='signup-label' htmlFor='last_name'>Last Name:</label>
-          <input className='signup-input' type='text' id='last_name' name='last_name' value={formData.last_name} onChange={handleChange} required />
-        </div>
-        <div classname="form-group">
-          <label className='signup-label' htmlFor='email'>Email:</label>
-          <input className='signup-input' type='email' id='email' name='email' value={formData.email} onChange={handleChange} required />
-        </div>
-        <div classname="form-group">
-          <label className='signup-label' htmlFor='password'>Password:</label>
-          <input className='signup-input' type='password' id='password' name='password' value={formData.password} onChange={handleChange} required />
-        </div>
-        <button className='signup-submit-btn' type='submit'>Sign Up as a New User</button>
-      </form>
-    </div>
+    <main className="auth-page">
+      <Link to="/" className="auth-brand" aria-label="FixIt home">
+        <span className="auth-brand-mark">F</span>
+        <span>Fix<span>It</span></span>
+      </Link>
+      <section className="auth-card">
+        <p className="auth-kicker">GET STARTED WITH FIXIT</p>
+        <h1>Create your student account</h1>
+        <p className="auth-description">
+          Sign up to report repairs and keep track of their progress.
+        </p>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label>
+            Username
+            <input
+              autoComplete="username"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              minLength="3"
+              required
+            />
+          </label>
+          <div className="auth-form-row">
+            <label>
+              First name
+              <input
+                autoComplete="given-name"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                required
+              />
+            </label>
+            <label>
+              Last name
+              <input
+                autoComplete="family-name"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleChange}
+                required
+              />
+            </label>
+          </div>
+          <label>
+            Student email
+            <input
+              autoComplete="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              autoComplete="new-password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              minLength="8"
+              required
+            />
+          </label>
+          {error && <p className="auth-error" role="alert">{error}</p>}
+          <button className="auth-submit" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating account…' : 'Create account'}
+          </button>
+        </form>
+        <p className="auth-switch">
+          Already have an account? <Link to="/studentlogin">Log in</Link>
+        </p>
+      </section>
+    </main>
   );
 }
 

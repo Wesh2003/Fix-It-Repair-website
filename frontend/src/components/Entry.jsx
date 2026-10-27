@@ -23,7 +23,7 @@ function Entry() {
       <section className="entry-hero" aria-labelledby="entry-heading">
         <div className="entry-hero-copy">
           <p className="entry-eyebrow"><span aria-hidden="true" /> CAMPUS REPAIRS, MADE SIMPLE</p>
-          <h1 id="entry-heading">Something broken? <span>We’ll help fix it.</span></h1>
+          <h1 id="entry-heading">Something broken on Campus? <span>We’ll help fix it.</span></h1>
           <p className="entry-intro">
             From a leaky tap to a faulty light, post the problem and connect with a repair
             professional. Less time dealing with repairs, more time for student life.

@@ -6,6 +6,7 @@ venv/
 .env
 .env.*
 !.env.example
+db.sqlite3
 
 # Node / frontend tooling (when added)
 node_modules/
