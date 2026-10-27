@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FixIt — Create an Account</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="brand"><span class="gear">⚙️</span> FixIt</div>
+      <h1 class="auth-title">Create an Account</h1>
+      <p class="auth-subtitle">Join FixIt to report and track campus issues</p>
+
+      <form id="register-form">
+        <div class="field-row">
+          <div class="field">
+            <label for="first_name">First name</label>
+            <input type="text" id="first_name" placeholder="John" required />
+          </div>
+          <div class="field">
+            <label for="last_name">Last name</label>
+            <input type="text" id="last_name" placeholder="Mwangi" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="username">Student ID / Username</label>
+          <input type="text" id="username" placeholder="ST12345" required />
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="student@campus.ac.ke" required />
+        </div>
+
+        <div class="field">
+          <label for="role">I am a</label>
+          <select id="role">
+            <option value="customer">Student</option>
+            <option value="staff">Staff</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="password-field">
+            <input type="password" id="password" placeholder="••••••••" required />
+            <button type="button" class="password-toggle" id="toggle-password">👁</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="confirm_password">Confirm Password</label>
+          <div class="password-field">
+            <input type="password" id="confirm_password" placeholder="••••••••" required />
+            <button type="button" class="password-toggle" id="toggle-confirm-password">👁</button>
+          </div>
+        </div>
+
+        <p class="error-text" id="error-text"></p>
+
+        <button type="submit" class="btn btn-primary" id="register-btn">Create Account</button>
+      </form>
+
+      <p class="auth-footer">Already have an account? <a href="login.html">Login</a></p>
+    </div>
+  </div>
+
+  <script type="module" src="js/register.js"></script>
+</body>
+</html>

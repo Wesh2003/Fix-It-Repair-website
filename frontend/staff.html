@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FixIt — Staff Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <h1 class="page-title">Issue reports</h1>
+      <p class="page-subtitle">Unassigned reports and jobs assigned to you.</p>
+
+      <div class="filters-row">
+        <select class="filter-select" id="status-filter">
+          <option value="">All statuses</option>
+          <option value="requested">Reported</option>
+          <option value="assigned">Assigned</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Fixed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select class="filter-select" id="priority-filter">
+          <option value="">All priorities</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div id="issues-container">
+          <p class="loading-text">Loading reports…</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="js/staff.js"></script>
+</body>
+</html>

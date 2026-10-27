@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FixIt — Admin Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <h1 class="page-title">Overview</h1>
+      <p class="page-subtitle">System-wide status of all reported issues.</p>
+
+      <div class="stats-grid" id="stats-grid"></div>
+
+      <div class="filters-row">
+        <select class="filter-select" id="status-filter">
+          <option value="">All statuses</option>
+          <option value="requested">Reported</option>
+          <option value="assigned">Assigned</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Fixed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <h2>All reports</h2>
+        <div id="issues-container">
+          <p class="loading-text">Loading reports…</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

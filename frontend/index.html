@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>FixIt</title>
+</head>
+<body>
+  <script type="module">
+    import { getSession, homeForRole } from "./js/auth.js";
+    const session = getSession();
+    window.location.replace(session ? homeForRole(session.role) : "login.html");
+  </script>
+</body>
+</html>

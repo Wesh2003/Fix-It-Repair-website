@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FixIt — My Reports</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar" id="topbar"></header>
+
+    <main class="main-content">
+      <h1 class="page-title">Submit an issue</h1>
+      <p class="page-subtitle">Report a maintenance problem and we'll route it to staff.</p>
+
+      <div class="card">
+        <form id="report-form">
+          <div class="field">
+            <label for="service">Category</label>
+            <select id="service" required></select>
+          </div>
+
+          <div class="field">
+            <label for="description">Description</label>
+            <textarea id="description" rows="3" placeholder="e.g. Leaking tap in the 2nd floor washroom" required></textarea>
+          </div>
+
+          <div class="field">
+            <label for="photo">Attach a photo (optional)</label>
+            <input type="file" id="photo" accept="image/*" />
+            <small class="field-help">Choose a photo of the issue, up to 2 MB. Images are saved in this browser for demo purposes.</small>
+            <div id="photo-preview-wrap" class="photo-preview-wrap" hidden>
+              <img id="photo-preview" class="photo-preview" alt="Preview of the selected issue" />
+              <button type="button" id="remove-photo" class="btn btn-secondary btn-small">Remove photo</button>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="location">Location</label>
+              <input type="text" id="location" placeholder="e.g. Block C, Room 204" required />
+            </div>
+            <div class="field">
+              <label for="priority">Priority</label>
+              <select id="priority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          </div>
+
+          <p class="error-text" id="error-text"></p>
+
+          <button type="submit" class="btn btn-primary" id="submit-btn" style="width:auto;padding:10px 20px;">Submit report</button>
+        </form>
+      </div>
+
+      <h1 class="page-title">My reports</h1>
+      <p class="page-subtitle">Track the status of issues you've submitted.</p>
+
+      <div class="card">
+        <div id="issues-container">
+          <p class="loading-text">Loading your reports…</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="js/student.js"></script>
+</body>
+</html>
