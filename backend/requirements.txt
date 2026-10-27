@@ -1,7 +1,4 @@
-Django==4.2.0
-djangorestframework==3.14.0
-django-cors-headers==4.0.0
-Pillow==10.0.0
-python-decouple==3.8
-psycopg2-binary==2.9.6
-gunicorn==21.2.0
+Django>=5.2,<5.3
+djangorestframework>=3.16,<3.17
+django-cors-headers>=4.7,<5
+Pillow>=11,<13

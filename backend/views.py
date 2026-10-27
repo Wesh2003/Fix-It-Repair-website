@@ -2,6 +2,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
+from django.contrib.auth import authenticate
 from django.utils import timezone
 from .models import User, Service, RepairRequest, Feedback, StaffProfile, Payment, SupportTicket
 from .serializers import (
@@ -12,7 +13,7 @@ from .serializers import (
 
 
 class IsOwnerOrAdmin(permissions.BasePermission):
-    \"\"\"Permission: Allow users to view/edit their own data or if they're admin\"\"\"
+    """Permission: Allow users to view/edit their own data or if they're admin."""
     
     def has_object_permission(self, request, view, obj):
         # admins can do anything
@@ -23,7 +24,7 @@ class IsOwnerOrAdmin(permissions.BasePermission):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    \"\"\"
+    """
     User registration, login, and profile management.
     
     Endpoints:
@@ -33,38 +34,43 @@ class UserViewSet(viewsets.ModelViewSet):
     - PUT/PATCH /api/users/{id}/ - update user profile
     - POST /api/users/{id}/set_password/ - change password
     - POST /api/users/login/ - login (get auth token)
-    \"\"\"
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    # anyone can register, but only logged-in users can view profiles
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['create', 'login']:
+            return [permissions.AllowAny()]
+        if self.action == 'list':
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
     def login(self, request):
-        \"\"\"authenticate user and return token\"\"\"
-        # get username and password from request
+        """Authenticate a user and return an authentication token."""
         username = request.data.get('username')
         password = request.data.get('password')
-        
-        try:
-            # find the user by username
-            user = User.objects.get(username=username)
-            # check if password is correct
-            if user.check_password(password):
-                # create or get the auth token for this user
-                token, _ = Token.objects.get_or_create(user=user)
-                # return token and user info
-                return Response({
-                    'token': token.key,      # the auth token to use for future requests
-                    'user_id': user.id,
-                    'role': user.role,      # customer, staff, or admin
-                    'username': user.username
-                })
-        except User.DoesNotExist:
-            pass
-        
-        # if username not found or password wrong, return error
-        return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+        if not username or not password:
+            return Response(
+                {'error': 'Username and password are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = authenticate(request, username=username, password=password)
+        if user is None:
+            return Response(
+                {'error': 'Invalid username or password.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'token': token.key,
+            'user_id': user.id,
+            'role': user.role,
+            'username': user.username,
+        })
     
     @action(detail=True, methods=['post'])
     def set_password(self, request, pk=None):

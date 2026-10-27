@@ -13,11 +13,11 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'phone',
                   'role', 'bio', 'profile_picture', 'password', 'date_joined']
         # these fields are set automatically by django, clients can't change them
-        read_only_fields = ['id', 'date_joined']
+        read_only_fields = ['id', 'date_joined', 'role']
 
     def create(self, validated_data):
         """create a new user with hashed password"""
-        # extract password from data (it's not a model field, we handle it specially)\n        password = validated_data.pop('password')
+        password = validated_data.pop('password')
         # create user with other fields
         user = User(**validated_data)
         # use django's set_password to hash the password securely
@@ -96,7 +96,7 @@ class RepairRequestDetailSerializer(serializers.ModelSerializer):
 
 
 class RepairRequestSerializer(serializers.ModelSerializer):
-    \"\"\"Simple serializer for RepairRequest - for list and create operations\"\"\"
+    """Simple serializer for RepairRequest - for list and create operations"""
     # get customer's name instead of just their id (show 'John Doe' not 'customer': 1)
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     # get service name instead of just the id
@@ -107,11 +107,14 @@ class RepairRequestSerializer(serializers.ModelSerializer):
         fields = ['id', 'customer', 'customer_name', 'service', 'service_name', 
                   'assigned_staff', 'status', 'priority', 'description', 
                   'estimated_cost', 'final_cost', 'location', 'requested_at', 'completed_at']
-        read_only_fields = ['id', 'requested_at', 'completed_at']
+        read_only_fields = [
+            'id', 'customer', 'customer_name', 'assigned_staff', 'status',
+            'requested_at', 'completed_at',
+        ]
 
 
 class SupportTicketSerializer(serializers.ModelSerializer):
-    \"\"\"Serializer for Support Tickets\"\"\"
+    """Serializer for Support Tickets"""
     # show user's full name instead of just id
     user_name = serializers.CharField(source='user.get_full_name', read_only=True)
     

@@ -1,0 +1,11 @@
+.auth-form-row {
+  display: grid;
+  gap: 13px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 420px) {
+  .auth-form-row {
+    grid-template-columns: 1fr;
+  }
+}
