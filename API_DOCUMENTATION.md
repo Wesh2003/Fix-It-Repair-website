@@ -154,9 +154,13 @@ statuses. Administrator-only requests use the account role and require a token.
 #### Administrator user management
 **GET** `/api/users/` lists users for administrators.
 
+**PATCH** `/api/users/{id}/` can update a user's `first_name`, `last_name`,
+`email`, and `phone`.
+
 **PATCH** `/api/users/{id}/` with `{"is_active": false}` deactivates an account;
 send `true` to reactivate it. Administrators cannot deactivate their own
-account. The role field is read-only.
+account. The role field is read-only. User deletion is not exposed through the
+dashboard to avoid cascading deletion of a user's repair history.
 
 #### Maintenance workflow
 Staff use **GET** `/api/repair-requests/` to see only requests assigned to them.
@@ -221,6 +225,10 @@ requests cannot be assigned.
 
 **Headers**: `Authorization: Token YOUR_TOKEN`
 
+Requests may be sent as JSON when no photo is attached, or as `multipart/form-data`
+when uploading a photo. The optional `photo` must be a valid image no larger
+than 5 MB.
+
 ```json
 {
   "service": 1,
@@ -245,6 +253,7 @@ requests cannot be assigned.
   "priority": "high",
   "description": "Leaking kitchen faucet, needs immediate attention",
   "location": "123 Main Street, Nairobi",
+  "photo": "http://localhost:8000/media/repair_requests/faucet.png",
   "requested_at": "2024-01-15T11:00:00Z"
 }
 ```
@@ -257,8 +266,13 @@ requests cannot be assigned.
 **Headers**: `Authorization: Token YOUR_TOKEN`
 
 - **Customer** sees: only their own requests
-- **Staff** sees: unassigned requests + assigned to them
+- **Staff** sees: only requests assigned to them
 - **Admin** sees: all requests
+
+Administrators can filter reports with `status`, `priority`, and `service` query
+parameters, and search descriptions, locations, categories, and customer names:
+
+`GET /api/repair-requests/?status=in_progress&priority=urgent&search=leak`
 
 **Response**: 200 OK
 ```json
@@ -273,6 +287,10 @@ requests cannot be assigned.
       "service_name": "Plumbing",
       "status": "requested",
       "priority": "high",
+      "description": "Leaking kitchen faucet",
+      "location": "123 Main Street, Nairobi",
+      "photo": null,
+      "progress_updates": [],
       "requested_at": "2024-01-15T11:00:00Z"
     }
   ]
@@ -309,11 +327,33 @@ requests cannot be assigned.
   "location": "123 Main Street, Nairobi",
   "latitude": -1.2921,
   "longitude": 36.8219,
+  "photo": null,
   "requested_at": "2024-01-15T11:00:00Z",
+  "progress_updates": [],
   "feedback": null,
   "payment": null
 }
 ```
+
+---
+
+#### Add a Staff Progress Update
+**POST** `/api/repair-requests/{id}/progress/`
+
+**Headers**: `Authorization: Token STAFF_TOKEN`
+
+Only the maintenance staff member assigned to an in-progress request can add
+a note. The update is included in request listings and details for the
+customer, assigned staff, and administrators.
+
+```json
+{
+  "note": "Replacement part ordered; installation is next."
+}
+```
+
+Starting work and marking a request resolved also add entries to the progress
+history automatically.
 
 ---
 

@@ -85,6 +85,114 @@
   margin: 8px 0 0;
 }
 
+.operations-photo-link {
+  color: #39745e;
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 10px;
+}
+
+.operations-progress-list,
+.request-progress-list {
+  border-left: 2px solid #dfe9d9;
+  display: grid;
+  gap: 9px;
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0 0 0 12px;
+}
+
+.operations-progress-list li,
+.request-progress-list li {
+  display: grid;
+  gap: 4px;
+}
+
+.operations-progress-list li > span,
+.request-progress-list li > span {
+  color: #52615b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.operations-progress-list small,
+.request-progress-list time {
+  color: #929d95;
+  font-size: 9px;
+}
+
+.operations-progress-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 15px;
+  max-width: 560px;
+}
+
+.operations-progress-form label,
+.report-filters label {
+  color: #33463b;
+  display: grid;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.operations-progress-form textarea,
+.report-filters input,
+.report-filters select {
+  background: #fff;
+  border: 1px solid #dfe6dc;
+  border-radius: 6px;
+  color: #263b31;
+  font-size: 12px;
+  min-height: 38px;
+  padding: 9px 10px;
+  width: 100%;
+}
+
+.operations-progress-form textarea {
+  min-height: 75px;
+  resize: vertical;
+}
+
+.operations-progress-form .auth-submit {
+  justify-self: start;
+  min-height: 37px;
+}
+
+.report-filters {
+  align-items: end;
+  border-bottom: 1px solid #edf0ea;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: minmax(210px, 2fr) repeat(3, minmax(125px, 1fr));
+  margin-bottom: 17px;
+  padding-bottom: 17px;
+}
+
+.report-filters label:first-child {
+  grid-column: span 1;
+}
+
+.report-filter-reset {
+  background: transparent;
+  border: 0;
+  color: #47725d;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  justify-self: start;
+  padding: 8px 0;
+}
+
+.report-filter-count {
+  color: #748078;
+  font-size: 10px;
+  justify-self: end;
+  padding: 8px 0;
+}
+
 .operations-actions {
   display: flex;
   gap: 10px;
@@ -167,9 +275,44 @@
   opacity: 0.45;
 }
 
+.operations-user-edit {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  padding: 8px;
+}
+
+.operations-user-edit label {
+  color: #33463b;
+  display: grid;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.operations-user-edit input {
+  background: #fff;
+  border: 1px solid #dfe6dc;
+  border-radius: 6px;
+  color: #263b31;
+  font-size: 12px;
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.operations-user-edit > div {
+  align-self: end;
+}
+
 .status-assigned {
   background: #f3efdc;
   color: #87733d;
+}
+
+@media (max-width: 760px) {
+  .report-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
@@ -178,6 +321,18 @@
   }
 
   .operations-assign-form {
+    grid-template-columns: 1fr;
+  }
+
+  .report-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .report-filter-count {
+    justify-self: start;
+  }
+
+  .operations-user-edit {
     grid-template-columns: 1fr;
   }
 
