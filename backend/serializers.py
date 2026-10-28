@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import User, Service, RepairRequest, Feedback, StaffProfile, Payment, SupportTicket
+from .models import (
+    User, Service, RepairRequest, RepairProgressUpdate, Feedback, StaffProfile,
+    Payment, SupportTicket,
+)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -27,6 +30,39 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
+class AdministratorManagedUserSerializer(serializers.ModelSerializer):
+    """Fields administrators can manage without exposing credentials."""
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'phone',
+            'role', 'is_active', 'date_joined',
+        ]
+        read_only_fields = ['id', 'role', 'date_joined']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.is_superuser:
+            data['role'] = 'admin'
+        return data
+
+    def validate_is_active(self, value):
+        request = self.context.get('request')
+        if (
+            self.instance
+            and request
+            and self.instance.pk == request.user.pk
+            and not value
+        ):
+            raise serializers.ValidationError('You cannot deactivate your own account.')
+        return value
+
+
+class StaffAssignmentSerializer(serializers.Serializer):
+    staff_id = serializers.IntegerField(min_value=1)
+
+
 class ServiceSerializer(serializers.ModelSerializer):
     """Serializer for Service model - repair types"""
     class Meta:
@@ -44,6 +80,15 @@ class FeedbackSerializer(serializers.ModelSerializer):
         model = Feedback
         fields = ['id', 'repair_request', 'rating', 'comment', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class RepairProgressUpdateSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
+
+    class Meta:
+        model = RepairProgressUpdate
+        fields = ['id', 'author_name', 'note', 'created_at']
+        read_only_fields = ['id', 'author_name', 'created_at']
 
 
 class StaffProfileSerializer(serializers.ModelSerializer):
@@ -84,13 +129,15 @@ class RepairRequestDetailSerializer(serializers.ModelSerializer):
     feedback = FeedbackSerializer(read_only=True)
     # include payment info if it exists
     payment = PaymentSerializer(read_only=True)
+    progress_updates = RepairProgressUpdateSerializer(many=True, read_only=True)
 
     class Meta:
         model = RepairRequest
         fields = ['id', 'customer', 'service', 'assigned_staff', 'status', 'priority',
                   'description', 'estimated_cost', 'final_cost', 'location',
-                  'latitude', 'longitude', 'requested_at', 'scheduled_at',
-                  'started_at', 'completed_at', 'feedback', 'payment']
+                  'latitude', 'longitude', 'photo', 'requested_at', 'scheduled_at',
+                  'started_at', 'completed_at', 'feedback', 'payment',
+                  'progress_updates']
         # these are set automatically, clients can't change them
         read_only_fields = ['id', 'requested_at', 'completed_at', 'started_at']
 
@@ -101,16 +148,29 @@ class RepairRequestSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
     # get service name instead of just the id
     service_name = serializers.CharField(source='service.name', read_only=True)
+    progress_updates = RepairProgressUpdateSerializer(many=True, read_only=True)
+
+    def validate_photo(self, photo):
+        if photo and photo.size > 5 * 1024 * 1024:
+            raise serializers.ValidationError('The photo must be 5 MB or smaller.')
+        return photo
     
     class Meta:
         model = RepairRequest
-        fields = ['id', 'customer', 'customer_name', 'service', 'service_name', 
+        fields = ['id', 'customer', 'customer_name', 'service', 'service_name',
                   'assigned_staff', 'status', 'priority', 'description', 
-                  'estimated_cost', 'final_cost', 'location', 'requested_at', 'completed_at']
+                  'estimated_cost', 'final_cost', 'location', 'photo',
+                  'requested_at', 'started_at', 'completed_at',
+                  'progress_updates']
         read_only_fields = [
             'id', 'customer', 'customer_name', 'assigned_staff', 'status',
-            'requested_at', 'completed_at',
+            'requested_at', 'started_at', 'completed_at',
+            'progress_updates',
         ]
+
+
+class RepairProgressNoteInputSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=2000, trim_whitespace=True)
 
 
 class SupportTicketSerializer(serializers.ModelSerializer):

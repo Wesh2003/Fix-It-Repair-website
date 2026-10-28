@@ -30,6 +30,7 @@ function StudentDashboardPage({ setIsAuthenticated }) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('id');
       localStorage.removeItem('username');
+      localStorage.removeItem('role');
       setIsAuthenticated(false);
       navigate('/studentlogin', {
         replace: true,

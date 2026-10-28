@@ -36,3 +36,22 @@ export async function apiRequest(path, { token, ...options } = {}) {
 
   return data;
 }
+
+export async function apiRequestAll(path, { token } = {}) {
+  const results = [];
+  let pagePath = path;
+
+  while (pagePath) {
+    const page = await apiRequest(pagePath, { token });
+    if (!Array.isArray(page?.results)) {
+      throw new Error('The API returned an unexpected paginated response.');
+    }
+    results.push(...page.results);
+    if (!page.next) {
+      return results;
+    }
+    pagePath = `${path}${new URL(page.next, API_URL).search}`;
+  }
+
+  return results;
+}

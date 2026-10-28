@@ -1,0 +1,53 @@
+.auth-role-card {
+  max-width: 520px;
+}
+
+.auth-role-options {
+  display: grid;
+  gap: 11px;
+}
+
+.auth-role-option {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e1e8df;
+  border-radius: 8px;
+  color: #263b31;
+  display: flex;
+  gap: 15px;
+  justify-content: space-between;
+  padding: 15px 16px;
+  text-decoration: none;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.auth-role-option:hover {
+  background: #f7faf4;
+  border-color: #9ab88e;
+  color: #245247;
+  transform: translateY(-1px);
+}
+
+.auth-role-option > span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.auth-role-option strong {
+  font-size: 13px;
+}
+
+.auth-role-option small {
+  color: #748078;
+  font-size: 11px;
+}
+
+.auth-role-arrow {
+  color: #54836d;
+  font-size: 19px;
+  flex: 0 0 auto;
+}
+
+.auth-role-card .auth-switch {
+  margin-bottom: 0;
+}

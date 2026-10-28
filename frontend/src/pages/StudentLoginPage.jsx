@@ -2,10 +2,10 @@
 import React from 'react';
 import StudentLogin from '../components/StudentLogin';
 
-function StudentLoginPage({setIsAuthenticated, setUserId}) {
+function StudentLoginPage({ setIsAuthenticated, setUserRole }) {
     return (
       <div>
-          <StudentLogin setIsAuthenticated={setIsAuthenticated} setUserId={setUserId}/>
+          <StudentLogin setIsAuthenticated={setIsAuthenticated} setUserRole={setUserRole}/>
       </div>
     )
   }
