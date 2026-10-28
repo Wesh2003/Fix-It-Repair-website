@@ -5,6 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'fixit-local-development-key')
 DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
+ADMIN_SIGNUP_KEY = os.getenv('FIXIT_ADMIN_SIGNUP_KEY', '')
 ALLOWED_HOSTS = os.getenv(
     'DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost'
 ).split(',')

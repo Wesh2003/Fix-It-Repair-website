@@ -74,12 +74,45 @@ Now access:
   "email": "john@example.com",
   "password": "secure_password123",
   "first_name": "John",
-  "last_name": "Doe",
-  "role": "customer"  // or "staff" or "admin"
+  "last_name": "Doe"
 }
 ```
 
-**Response**: 201 Created
+This public endpoint always creates a customer account. The submitted `role`
+field is ignored; use the role-specific endpoints below for staff and
+administrators.
+
+#### Register Maintenance Staff
+**POST** `/api/users/staff_signup/`
+
+Send the same profile fields as customer registration. This creates a `staff`
+account and its maintenance profile.
+
+#### Register an Administrator
+**POST** `/api/users/admin_signup/`
+
+Send the same profile fields plus the administrator signup key:
+
+```json
+{
+  "username": "fixit_admin",
+  "email": "admin@example.com",
+  "password": "secure_password123",
+  "first_name": "FixIt",
+  "last_name": "Admin",
+  "admin_key": "the-server-configured-key"
+}
+```
+
+Set `FIXIT_ADMIN_SIGNUP_KEY` in the Django server environment. Registration is
+disabled when the setting is empty; never put the key in frontend configuration
+or source control.
+
+#### Registration Responses
+All three registration endpoints return `201 Created`. Customer registration
+returns the created user details; staff and administrator registration return a
+success message. Log in using the matching portal to receive a token.
+
 ```json
 {
   "id": 1,
@@ -111,6 +144,27 @@ Now access:
   "username": "john_doe"
 }
 ```
+
+Use the returned role to access the matching student, staff, or administrator
+portal. Staff can list only their assigned requests, start assigned work, and
+complete work in progress. Administrators can list and deactivate/reactivate
+users, list all repair reports, assign active staff, and monitor request
+statuses. Administrator-only requests use the account role and require a token.
+
+#### Administrator user management
+**GET** `/api/users/` lists users for administrators.
+
+**PATCH** `/api/users/{id}/` with `{"is_active": false}` deactivates an account;
+send `true` to reactivate it. Administrators cannot deactivate their own
+account. The role field is read-only.
+
+#### Maintenance workflow
+Staff use **GET** `/api/repair-requests/` to see only requests assigned to them.
+They can **POST** `/api/repair-requests/{id}/start/` for an assigned request
+and **POST** `/api/repair-requests/{id}/complete/` after work is in progress.
+Administrators use **POST** `/api/repair-requests/{id}/assign/` with
+`{"staff_id": 5}` to assign an active staff account. Completed and cancelled
+requests cannot be assigned.
 
 ---
 

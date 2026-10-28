@@ -1,15 +1,64 @@
+import secrets
+
+from django.conf import settings
+from django.db import transaction
+from django.db.models import Q
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import User, Service, RepairRequest, Feedback, StaffProfile, Payment, SupportTicket
-from .serializers import (
-    UserSerializer, ServiceSerializer, RepairRequestSerializer,
-    RepairRequestDetailSerializer, FeedbackSerializer, StaffProfileSerializer,
-    PaymentSerializer, SupportTicketSerializer
+from .models import (
+    User, Service, RepairRequest, RepairProgressUpdate, Feedback, StaffProfile,
+    Payment, SupportTicket,
 )
+from .serializers import (
+    UserSerializer, AdministratorManagedUserSerializer,
+    StaffAssignmentSerializer, RepairProgressNoteInputSerializer,
+    ServiceSerializer, RepairRequestSerializer,
+    RepairRequestDetailSerializer, RepairProgressUpdateSerializer,
+    FeedbackSerializer, StaffProfileSerializer, PaymentSerializer,
+    SupportTicketSerializer,
+)
+
+
+def is_administrator(user):
+    return bool(
+        user
+        and user.is_authenticated
+        and (user.role == 'admin' or user.is_superuser)
+    )
+
+
+class IsAdministrator(permissions.BasePermission):
+    """Grant access to application administrators, independent of Django staff flags."""
+
+    def has_permission(self, request, view):
+        return is_administrator(request.user)
+
+
+class IsMaintenanceStaff(permissions.BasePermission):
+    """Grant access to maintenance staff accounts."""
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == 'staff'
+        )
+
+
+class IsCustomer(permissions.BasePermission):
+    """Grant repair request creation access to customer accounts."""
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == 'customer'
+        )
 
 
 class IsOwnerOrAdmin(permissions.BasePermission):
@@ -17,7 +66,7 @@ class IsOwnerOrAdmin(permissions.BasePermission):
     
     def has_object_permission(self, request, view, obj):
         # admins can do anything
-        if request.user and request.user.is_staff:
+        if is_administrator(request.user):
             return True
         # regular users can only access their own data
         return obj.id == request.user.id
@@ -40,11 +89,18 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['create', 'login']:
+        if self.action in ['create', 'login', 'staff_signup', 'admin_signup']:
             return [permissions.AllowAny()]
         if self.action == 'list':
-            return [permissions.IsAdminUser()]
+            return [IsAdministrator()]
         return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
+
+    def get_serializer_class(self):
+        if self.action in ['list', 'update', 'partial_update'] and is_administrator(
+            self.request.user
+        ):
+            return AdministratorManagedUserSerializer
+        return UserSerializer
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
     def login(self, request):
@@ -68,9 +124,43 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({
             'token': token.key,
             'user_id': user.id,
-            'role': user.role,
+            'role': 'admin' if user.is_superuser else user.role,
             'username': user.username,
         })
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def staff_signup(self, request):
+        """Create a maintenance staff account and its profile."""
+        serializer = UserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            user = serializer.save(role='staff')
+            StaffProfile.objects.create(user=user)
+        return Response(
+            {'message': 'Maintenance staff account created.'},
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def admin_signup(self, request):
+        """Create an administrator account only when the server key is configured."""
+        configured_key = getattr(settings, 'ADMIN_SIGNUP_KEY', '')
+        submitted_key = request.data.get('admin_key', '')
+        if not configured_key or not submitted_key or not secrets.compare_digest(
+            str(submitted_key), str(configured_key)
+        ):
+            return Response(
+                {'error': 'Administrator registration is unavailable or the key is invalid.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = UserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(role='admin', is_staff=True)
+        return Response(
+            {'message': 'Administrator account created.'},
+            status=status.HTTP_201_CREATED,
+        )
     
     @action(detail=True, methods=['post'])
     def set_password(self, request, pk=None):
@@ -119,8 +209,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         """only admins can create/edit/delete services"""
         # check which action is being performed
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            # for create/update/delete, require admin role
-            return [permissions.IsAdminUser()]
+            return [IsAdministrator()]
         # for viewing, allow authenticated and unauthenticated (read-only) users
         return [permissions.IsAuthenticatedOrReadOnly()]
 
@@ -141,20 +230,65 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
     """
     serializer_class = RepairRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [permissions.IsAuthenticated(), IsCustomer()]
+        if self.action == 'assign':
+            return [IsAdministrator()]
+        if self.action in ['start', 'complete']:
+            return [IsMaintenanceStaff()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsAdministrator()]
+        return [permissions.IsAuthenticated()]
+
     def get_queryset(self):
         """filter requests based on user role"""
         user = self.request.user
         # admin sees all requests in the system
-        if user.role == 'admin':
-            return RepairRequest.objects.all()
-        # staff sees their assigned requests + unassigned requests they could take
+        if is_administrator(user):
+            queryset = RepairRequest.objects.select_related(
+                'customer', 'service', 'assigned_staff'
+            ).prefetch_related('progress_updates__author')
+            search = self.request.query_params.get('search', '').strip()
+            request_status = self.request.query_params.get('status', '')
+            priority = self.request.query_params.get('priority', '')
+            service_id = self.request.query_params.get('service', '')
+
+            if request_status:
+                valid_statuses = dict(RepairRequest.STATUS_CHOICES)
+                if request_status not in valid_statuses:
+                    raise ValidationError({'status': 'Select a valid report status.'})
+                queryset = queryset.filter(status=request_status)
+            if priority:
+                valid_priorities = dict(RepairRequest.PRIORITY_CHOICES)
+                if priority not in valid_priorities:
+                    raise ValidationError({'priority': 'Select a valid priority.'})
+                queryset = queryset.filter(priority=priority)
+            if service_id:
+                if not service_id.isdecimal():
+                    raise ValidationError({'service': 'Enter a valid issue category.'})
+                queryset = queryset.filter(service_id=int(service_id))
+            if search:
+                queryset = queryset.filter(
+                    Q(description__icontains=search)
+                    | Q(location__icontains=search)
+                    | Q(service__name__icontains=search)
+                    | Q(customer__username__icontains=search)
+                    | Q(customer__first_name__icontains=search)
+                    | Q(customer__last_name__icontains=search)
+                )
+            return queryset
+        # staff only sees work assigned to them
         elif user.role == 'staff':
-            return RepairRequest.objects.filter(assigned_staff=user) | \
-                   RepairRequest.objects.filter(status='requested')
+            return RepairRequest.objects.filter(assigned_staff=user).prefetch_related(
+                'progress_updates__author'
+            )
         # customers only see their own requests
         else:
-            return RepairRequest.objects.filter(customer=user)
+            return RepairRequest.objects.filter(customer=user).prefetch_related(
+                'progress_updates__author'
+            )
     
     def get_serializer_class(self):
         """use detailed serializer for single request, simple for list"""
@@ -169,17 +303,23 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         # when a customer creates a request, they are automatically the customer
         serializer.save(customer=self.request.user)
     
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
         """assign staff member to a repair request"""
         # get the repair request that admin wants to assign
         repair_request = self.get_object()
-        # get the staff id from the request body
-        staff_id = request.data.get('staff_id')
-        
+        if repair_request.status in ['completed', 'cancelled']:
+            return Response(
+                {'error': 'Completed or cancelled requests cannot be assigned.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        assignment_serializer = StaffAssignmentSerializer(data=request.data)
+        assignment_serializer.is_valid(raise_exception=True)
+        staff_id = assignment_serializer.validated_data['staff_id']
+
         try:
             # find a staff user with the given id
-            staff = User.objects.get(id=staff_id, role='staff')
+            staff = User.objects.get(id=staff_id, role='staff', is_active=True)
             # assign this staff member to the request
             repair_request.assigned_staff = staff
             # change status from 'requested' to 'assigned'
@@ -198,7 +338,10 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         # get the repair request object
         repair_request = self.get_object()
         # only the assigned staff can start work on a request
-        if repair_request.assigned_staff != request.user:
+        if (
+            repair_request.assigned_staff != request.user
+            or repair_request.status != 'assigned'
+        ):
             return Response({'error': 'Not assigned to you'}, status=status.HTTP_403_FORBIDDEN)
         
         # change status from 'assigned' to 'in_progress'
@@ -207,7 +350,37 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         repair_request.started_at = timezone.now()
         # save to database
         repair_request.save()
+        RepairProgressUpdate.objects.create(
+            repair_request=repair_request,
+            author=request.user,
+            note='Work started.',
+        )
         return Response({'message': 'Work started'})
+
+    @action(detail=True, methods=['post'])
+    def progress(self, request, pk=None):
+        """Add a progress note to a repair assigned to the current staff member."""
+        repair_request = self.get_object()
+        if (
+            repair_request.assigned_staff != request.user
+            or repair_request.status != 'in_progress'
+        ):
+            return Response(
+                {'error': 'Progress updates are available only for your in-progress assignments.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = RepairProgressNoteInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        update = RepairProgressUpdate.objects.create(
+            repair_request=repair_request,
+            author=request.user,
+            note=serializer.validated_data['note'],
+        )
+        return Response(
+            RepairProgressUpdateSerializer(update).data,
+            status=status.HTTP_201_CREATED,
+        )
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -215,7 +388,10 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         # get the repair request object
         repair_request = self.get_object()
         # only the assigned staff can complete a request
-        if repair_request.assigned_staff != request.user:
+        if (
+            repair_request.assigned_staff != request.user
+            or repair_request.status != 'in_progress'
+        ):
             return Response({'error': 'Not assigned to you'}, status=status.HTTP_403_FORBIDDEN)
         
         # change status to 'completed'
@@ -226,6 +402,11 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         repair_request.final_cost = request.data.get('final_cost', repair_request.estimated_cost)
         # save to database
         repair_request.save()
+        RepairProgressUpdate.objects.create(
+            repair_request=repair_request,
+            author=request.user,
+            note='Issue marked resolved.',
+        )
         return Response({'message': 'Request completed'})
     
     @action(detail=True, methods=['post'])
@@ -234,7 +415,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         # get the repair request object
         repair_request = self.get_object()
         # only the customer who created it or staff/admin can cancel
-        if repair_request.customer != request.user and not request.user.is_staff:
+        if repair_request.customer != request.user and not is_administrator(request.user):
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
         
         # change status to 'cancelled'
@@ -307,7 +488,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         """users can only view their own payments, admins see all"""
         user = self.request.user
         # admin sees every payment in system
-        if user.role == 'admin':
+        if is_administrator(user):
             return Payment.objects.all()
         # regular users only see payments for their repair requests
         return Payment.objects.filter(repair_request__customer=user)
@@ -331,7 +512,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         """users see their own tickets, admins see all"""
         user = self.request.user
         # admin sees all support tickets in system
-        if user.role == 'admin':
+        if is_administrator(user):
             return SupportTicket.objects.all()
         # regular users only see their own tickets
         return SupportTicket.objects.filter(user=user)

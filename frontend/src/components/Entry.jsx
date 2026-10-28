@@ -15,8 +15,8 @@ function Entry() {
           <a href="#services">What we fix</a>
         </nav>
         <div className="entry-header-actions">
-          <Link className="entry-login-link" to="/studentlogin">Log in</Link>
-          <Link className="entry-header-cta" to="/studentregister">Get started</Link>
+          <Link className="entry-login-link" to="/login">Log in</Link>
+          <Link className="entry-header-cta" to="/signup">Sign up</Link>
         </div>
       </header>
 
@@ -28,12 +28,6 @@ function Entry() {
             From a leaky tap to a faulty light, post the problem and connect with a repair
             professional. Less time dealing with repairs, more time for student life.
           </p>
-          <div className="entry-hero-actions">
-            <Link className="entry-primary-cta" to="/studentregister">
-              Post a repair request <span aria-hidden="true">→</span>
-            </Link>
-            <Link className="entry-secondary-cta" to="/studentlogin">I already have an account</Link>
-          </div>
           <div className="entry-trust-note">
             <span className="entry-trust-icon" aria-hidden="true">✓</span>
             Keep your repair details and updates together in one place
@@ -119,7 +113,6 @@ function Entry() {
           <span>Fix<span>It</span></span>
         </Link>
         <p>Making student spaces work better.</p>
-        <Link to="/studentregister">Start with your first request <span aria-hidden="true">→</span></Link>
       </footer>
     </main>
   );

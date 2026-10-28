@@ -59,6 +59,24 @@ Students can create an account, log in, post a repair request, and view their
 request statuses. To use a different API URL, set `VITE_API_URL` in
 `frontend/.env.local` (for example `VITE_API_URL=http://127.0.0.1:8000/api`).
 
+Maintenance staff can register and log in from the staff portal to view only
+their assigned repairs, start work, and mark repairs resolved. Administrators
+can review all repair reports, assign active staff, monitor progress, and
+activate or deactivate user accounts.
+
+Administrator self-registration requires a server-side key. Set it in the
+backend terminal before starting Django; do not put it in frontend environment
+variables or commit it:
+
+```powershell
+$env:FIXIT_ADMIN_SIGNUP_KEY = "use-a-long-random-value"
+.\.venv\Scripts\python.exe manage.py runserver
+```
+
+When this setting is empty, the administrator registration page remains
+available but the API rejects account creation. Staff and student registration
+do not require this key.
+
 ### Checks
 
 ```powershell
@@ -72,3 +90,8 @@ npm run build
 1. Branch from `main`.
 2. Reference Jira keys in commits/PRs when applicable (e.g. `SCRUM-12`).
 3. Open a PR; CI will run once workflows are added under `.github/workflows/`.
+
+## Quick starter code: to be executed on the main project source branch terminal
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-fixit.ps1
+```

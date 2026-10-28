@@ -30,6 +30,12 @@ class User(AbstractUser):
         # show newest users first when listing
         ordering = ['-date_joined']
 
+    def save(self, *args, **kwargs):
+        if self.is_superuser:
+            self.role = 'admin'
+            self.is_staff = True
+        super().save(*args, **kwargs)
+
     def __str__(self):
         # when displaying a user, show their full name and role
         return f"{self.get_full_name()} ({self.role})"
@@ -110,6 +116,7 @@ class RepairRequest(models.Model):
     # --- what the customer needs ---
     # what needs to be fixed? describe the problem
     description = models.TextField()
+    photo = models.ImageField(upload_to='repair_requests/', null=True, blank=True)
     # how much we think it will cost
     estimated_cost = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True)
@@ -140,6 +147,21 @@ class RepairRequest(models.Model):
 
     def __str__(self):
         return f"Request #{self.id} - {self.service.name} by {self.customer.username}"
+
+
+class RepairProgressUpdate(models.Model):
+    repair_request = models.ForeignKey(
+        RepairRequest, on_delete=models.CASCADE, related_name='progress_updates')
+    author = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='repair_progress_updates')
+    note = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Progress for request #{self.repair_request_id} by {self.author.username}"
 
 
 class Feedback(models.Model):

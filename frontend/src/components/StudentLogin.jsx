@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api';
 import '../css/UserLogin.css';
 
-function StudentLogin({ setIsAuthenticated }) {
+function StudentLogin({ setIsAuthenticated, setUserRole }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,10 +21,16 @@ function StudentLogin({ setIsAuthenticated }) {
         method: 'POST',
         body: JSON.stringify({ username, password }),
       });
+      if (data.role !== 'customer') {
+        setError('This account belongs to a different FixIt portal.');
+        return;
+      }
       localStorage.setItem('access_token', data.token);
       localStorage.setItem('id', String(data.user_id));
       localStorage.setItem('username', data.username);
+      localStorage.setItem('role', data.role);
       setIsAuthenticated(true);
+      setUserRole(data.role);
       navigate('/student/dashboard', { replace: true });
     } catch (requestError) {
       setError(requestError.message);
