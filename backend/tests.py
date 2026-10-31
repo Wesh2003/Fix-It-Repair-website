@@ -1,7 +1,101 @@
+from decimal import Decimal
+from io import BytesIO
+from tempfile import TemporaryDirectory
+
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from .models import RepairRequest, Service, StaffProfile, User
+from .models import (
+    RepairProgressUpdate, RepairRequest, Service, StaffProfile, User,
+)
+from .services import (
+    InvalidRepairTransition,
+    add_repair_progress,
+    complete_repair,
+    start_repair,
+)
+
+
+class RepairWorkflowServiceTests(TestCase):
+    def setUp(self):
+        self.customer = User.objects.create_user(
+            username='workflow-customer',
+            password='Safe-password-123',
+            role='customer',
+        )
+        self.staff = User.objects.create_user(
+            username='workflow-staff',
+            password='Safe-password-123',
+            role='staff',
+        )
+        self.other_staff = User.objects.create_user(
+            username='other-workflow-staff',
+            password='Safe-password-123',
+            role='staff',
+        )
+        self.service = Service.objects.create(
+            name='Workflow repair',
+            description='Workflow test service',
+            base_price='0.00',
+        )
+        self.repair_request = RepairRequest.objects.create(
+            customer=self.customer,
+            service=self.service,
+            assigned_staff=self.staff,
+            status='assigned',
+            description='Test repair.',
+            location='Test location',
+        )
+
+    def test_start_repair_changes_state_and_records_progress_atomically(self):
+        start_repair(self.repair_request, self.staff)
+
+        self.repair_request.refresh_from_db()
+        self.assertEqual(self.repair_request.status, 'in_progress')
+        self.assertIsNotNone(self.repair_request.started_at)
+        self.assertEqual(
+            RepairProgressUpdate.objects.get().note,
+            'Work started.',
+        )
+
+    def test_unassigned_staff_cannot_start_repair(self):
+        with self.assertRaises(InvalidRepairTransition):
+            start_repair(self.repair_request, self.other_staff)
+
+        self.repair_request.refresh_from_db()
+        self.assertEqual(self.repair_request.status, 'assigned')
+        self.assertFalse(RepairProgressUpdate.objects.exists())
+
+    def test_progress_and_completion_require_an_in_progress_assignment(self):
+        with self.assertRaises(InvalidRepairTransition):
+            add_repair_progress(
+                self.repair_request,
+                self.staff,
+                'This must not be recorded yet.',
+            )
+
+        self.assertFalse(RepairProgressUpdate.objects.exists())
+        self.repair_request.status = 'in_progress'
+        self.repair_request.save(update_fields=['status'])
+
+        update = add_repair_progress(
+            self.repair_request,
+            self.staff,
+            'Work is progressing.',
+        )
+        complete_repair(self.repair_request, self.staff, '25.00')
+
+        self.repair_request.refresh_from_db()
+        self.assertEqual(self.repair_request.status, 'completed')
+        self.assertIsNotNone(self.repair_request.completed_at)
+        self.assertEqual(self.repair_request.final_cost, Decimal('25.00'))
+        self.assertEqual(
+            RepairProgressUpdate.objects.filter(repair_request=self.repair_request).count(),
+            2,
+        )
+        self.assertEqual(update.note, 'Work is progressing.')
 
 
 class StudentAccountAndRepairFlowTests(APITestCase):
@@ -68,6 +162,43 @@ class StudentAccountAndRepairFlowTests(APITestCase):
         self.assertEqual(listed.status_code, 200)
         self.assertEqual(listed.data['results'][0]['id'], repair_request.id)
 
+    def test_student_can_upload_optional_repair_photo(self):
+        from PIL import Image
+
+        user = User.objects.create_user(
+            username='student-photo',
+            password='Safe-password-123',
+            role='customer',
+        )
+        service = Service.objects.create(
+            name='General repair',
+            description='General repair tasks',
+            base_price='0.00',
+        )
+        image_buffer = BytesIO()
+        Image.new('RGB', (1, 1), color='red').save(image_buffer, format='PNG')
+        image_buffer.seek(0)
+        self.client.force_authenticate(user=user)
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            created = self.client.post(
+                '/api/repair-requests/',
+                {
+                    'service': service.id,
+                    'description': 'A chair leg is broken.',
+                    'location': 'Library, Room 2',
+                    'priority': 'low',
+                    'photo': SimpleUploadedFile(
+                        'damage.png', image_buffer.read(), content_type='image/png',
+                    ),
+                },
+                format='multipart',
+            )
+            self.assertEqual(created.status_code, 201)
+            repair_request = RepairRequest.objects.get()
+            self.assertTrue(repair_request.photo.name.startswith('repair_requests/'))
+            self.assertIn('photo', created.data)
+
 
 class StaffAndAdministratorWorkflowTests(APITestCase):
     def test_staff_can_sign_up_log_in_and_only_see_assigned_repairs(self):
@@ -132,11 +263,36 @@ class StaffAndAdministratorWorkflowTests(APITestCase):
         self.assertEqual(assigned.status, 'in_progress')
         self.assertIsNotNone(assigned.started_at)
 
+        progress = self.client.post(
+            f'/api/repair-requests/{assigned.id}/progress/',
+            {'note': 'Replacement part ordered; installation is next.'},
+            format='json',
+        )
+        self.assertEqual(progress.status_code, 201)
+        self.assertEqual(
+            progress.data['note'],
+            'Replacement part ordered; installation is next.',
+        )
+
         completed = self.client.post(f'/api/repair-requests/{assigned.id}/complete/')
         self.assertEqual(completed.status_code, 200)
         assigned.refresh_from_db()
         self.assertEqual(assigned.status, 'completed')
         self.assertIsNotNone(assigned.completed_at)
+        self.assertEqual(
+            RepairProgressUpdate.objects.filter(repair_request=assigned).count(),
+            3,
+        )
+        self.client.force_authenticate(user=customer)
+        customer_report = self.client.get('/api/repair-requests/')
+        self.assertEqual(customer_report.status_code, 200)
+        assigned_report = next(
+            item for item in customer_report.data['results']
+            if item['id'] == assigned.id
+        )
+        report_updates = assigned_report['progress_updates']
+        self.assertEqual(len(report_updates), 3)
+        self.assertIn('Replacement part ordered', report_updates[1]['note'])
 
     def test_admin_signup_requires_key_and_admin_can_assign_and_manage_users(self):
         payload = {
@@ -207,6 +363,36 @@ class StaffAndAdministratorWorkflowTests(APITestCase):
         repair_request.refresh_from_db()
         self.assertEqual(repair_request.assigned_staff, staff)
         self.assertEqual(repair_request.status, 'assigned')
+
+        filtered_reports = self.client.get(
+            '/api/repair-requests/?search=leaking&status=assigned&priority=medium'
+        )
+        self.assertEqual(filtered_reports.status_code, 200)
+        self.assertEqual(
+            [item['id'] for item in filtered_reports.data['results']],
+            [repair_request.id],
+        )
+        no_match = self.client.get('/api/repair-requests/?status=completed')
+        self.assertEqual(no_match.status_code, 200)
+        self.assertEqual(no_match.data['results'], [])
+        category_filter = self.client.get(
+            f'/api/repair-requests/?service={service.id}'
+        )
+        self.assertEqual(category_filter.status_code, 200)
+        self.assertEqual(
+            [item['id'] for item in category_filter.data['results']],
+            [repair_request.id],
+        )
+
+        profile_update = self.client.patch(
+            f'/api/users/{customer.id}/',
+            {'first_name': 'Updated', 'email': 'updated@example.com'},
+            format='json',
+        )
+        self.assertEqual(profile_update.status_code, 200)
+        customer.refresh_from_db()
+        self.assertEqual(customer.first_name, 'Updated')
+        self.assertEqual(customer.email, 'updated@example.com')
 
         updated = self.client.patch(
             f'/api/users/{customer.id}/',

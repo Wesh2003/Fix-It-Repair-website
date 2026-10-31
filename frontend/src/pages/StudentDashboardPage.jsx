@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api';
 import '../css/StudentDashboard.css';
@@ -9,10 +9,12 @@ function StudentDashboardPage({ setIsAuthenticated }) {
   const [services, setServices] = useState([]);
   const [requests, setRequests] = useState([]);
   const [formData, setFormData] = useState(emptyRequest);
+  const [photo, setPhoto] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const photoInput = useRef(null);
   const username = localStorage.getItem('username') || 'student';
   const token = localStorage.getItem('access_token');
 
@@ -74,12 +76,23 @@ function StudentDashboardPage({ setIsAuthenticated }) {
     setError('');
     setIsSubmitting(true);
     try {
+      const requestData = new FormData();
+      Object.entries({ ...formData, service: String(formData.service) }).forEach(([key, value]) => {
+        requestData.append(key, value);
+      });
+      if (photo) {
+        requestData.append('photo', photo);
+      }
       await apiRequest('/repair-requests/', {
         method: 'POST',
         token,
-        body: JSON.stringify({ ...formData, service: Number(formData.service) }),
+        body: requestData,
       });
       setFormData(emptyRequest);
+      setPhoto(null);
+      if (photoInput.current) {
+        photoInput.current.value = '';
+      }
       await loadDashboard();
     } catch (requestError) {
       setError(requestError.message);
@@ -153,6 +166,26 @@ function StudentDashboardPage({ setIsAuthenticated }) {
                 />
               </label>
               <label>
+                Add a photo (optional, up to 5 MB)
+                <input
+                  ref={photoInput}
+                  type="file"
+                  name="photo"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const selectedPhoto = event.target.files?.[0] || null;
+                    if (selectedPhoto && selectedPhoto.size > 5 * 1024 * 1024) {
+                      setError('The photo must be 5 MB or smaller.');
+                      event.target.value = '';
+                      setPhoto(null);
+                      return;
+                    }
+                    setError('');
+                    setPhoto(selectedPhoto);
+                  }}
+                />
+              </label>
+              <label>
                 How urgent is it?
                 <select name="priority" value={formData.priority} onChange={handleChange}>
                   <option value="low">Low</option>
@@ -197,6 +230,21 @@ function StudentDashboardPage({ setIsAuthenticated }) {
                     </div>
                     <p>{request.description}</p>
                     <span className="request-location">{request.location}</span>
+                    {request.photo && (
+                      <a className="request-photo-link" href={request.photo} target="_blank" rel="noreferrer">
+                        View attached photo
+                      </a>
+                    )}
+                    {request.progress_updates?.length > 0 && (
+                      <ul className="request-progress-list" aria-label="Repair progress">
+                        {request.progress_updates.map((update) => (
+                          <li key={update.id}>
+                            <span>{update.note}</span>
+                            <time dateTime={update.created_at}>{new Date(update.created_at).toLocaleString()}</time>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>

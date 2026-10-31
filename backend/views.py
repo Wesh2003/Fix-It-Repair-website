@@ -9,7 +9,6 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
-from django.utils import timezone
 from .models import (
     User, Service, RepairRequest, RepairProgressUpdate, Feedback, StaffProfile,
     Payment, SupportTicket,
@@ -21,6 +20,12 @@ from .serializers import (
     RepairRequestDetailSerializer, RepairProgressUpdateSerializer,
     FeedbackSerializer, StaffProfileSerializer, PaymentSerializer,
     SupportTicketSerializer,
+)
+from .services import (
+    InvalidRepairTransition,
+    add_repair_progress,
+    complete_repair,
+    start_repair,
 )
 
 
@@ -335,48 +340,34 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
         """mark request as in progress (staff only)"""
-        # get the repair request object
         repair_request = self.get_object()
-        # only the assigned staff can start work on a request
-        if (
-            repair_request.assigned_staff != request.user
-            or repair_request.status != 'assigned'
-        ):
-            return Response({'error': 'Not assigned to you'}, status=status.HTTP_403_FORBIDDEN)
-        
-        # change status from 'assigned' to 'in_progress'
-        repair_request.status = 'in_progress'
-        # record when work started (current date/time)
-        repair_request.started_at = timezone.now()
-        # save to database
-        repair_request.save()
-        RepairProgressUpdate.objects.create(
-            repair_request=repair_request,
-            author=request.user,
-            note='Work started.',
-        )
+        try:
+            start_repair(repair_request, request.user)
+        except InvalidRepairTransition as error:
+            return Response(
+                {'error': str(error)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return Response({'message': 'Work started'})
 
     @action(detail=True, methods=['post'])
     def progress(self, request, pk=None):
         """Add a progress note to a repair assigned to the current staff member."""
         repair_request = self.get_object()
-        if (
-            repair_request.assigned_staff != request.user
-            or repair_request.status != 'in_progress'
-        ):
+        serializer = RepairProgressNoteInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            update = add_repair_progress(
+                repair_request,
+                request.user,
+                serializer.validated_data['note'],
+            )
+        except InvalidRepairTransition as error:
             return Response(
-                {'error': 'Progress updates are available only for your in-progress assignments.'},
+                {'error': str(error)},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = RepairProgressNoteInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        update = RepairProgressUpdate.objects.create(
-            repair_request=repair_request,
-            author=request.user,
-            note=serializer.validated_data['note'],
-        )
         return Response(
             RepairProgressUpdateSerializer(update).data,
             status=status.HTTP_201_CREATED,
@@ -385,28 +376,15 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """mark request as completed (staff)"""
-        # get the repair request object
         repair_request = self.get_object()
-        # only the assigned staff can complete a request
-        if (
-            repair_request.assigned_staff != request.user
-            or repair_request.status != 'in_progress'
-        ):
-            return Response({'error': 'Not assigned to you'}, status=status.HTTP_403_FORBIDDEN)
-        
-        # change status to 'completed'
-        repair_request.status = 'completed'
-        # record when work finished (current date/time)
-        repair_request.completed_at = timezone.now()
-        # if staff provides a final cost, use it; otherwise use the estimate
-        repair_request.final_cost = request.data.get('final_cost', repair_request.estimated_cost)
-        # save to database
-        repair_request.save()
-        RepairProgressUpdate.objects.create(
-            repair_request=repair_request,
-            author=request.user,
-            note='Issue marked resolved.',
-        )
+        final_cost = request.data.get('final_cost', repair_request.estimated_cost)
+        try:
+            complete_repair(repair_request, request.user, final_cost)
+        except InvalidRepairTransition as error:
+            return Response(
+                {'error': str(error)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return Response({'message': 'Request completed'})
     
     @action(detail=True, methods=['post'])

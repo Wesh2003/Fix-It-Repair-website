@@ -180,6 +180,39 @@
   font-size: 10px;
 }
 
+.request-photo-link {
+  color: #39745e;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 9px;
+}
+
+.request-progress-list {
+  border-left: 2px solid #dfe9d9;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0 0 0 11px;
+}
+
+.request-progress-list li {
+  display: grid;
+  gap: 3px;
+}
+
+.request-progress-list li > span {
+  color: #52615b;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.request-progress-list time {
+  color: #929d95;
+  font-size: 9px;
+}
+
 @media (max-width: 760px) {
   .dashboard-grid {
     grid-template-columns: 1fr;

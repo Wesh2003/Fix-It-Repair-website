@@ -62,7 +62,10 @@ request statuses. To use a different API URL, set `VITE_API_URL` in
 Maintenance staff can register and log in from the staff portal to view only
 their assigned repairs, start work, and mark repairs resolved. Administrators
 can review all repair reports, assign active staff, monitor progress, and
-activate or deactivate user accounts.
+search/filter reports, edit basic user contact details, and activate or
+deactivate user accounts. Students can attach an optional image (up to 5 MB)
+to a repair report. Staff progress notes and automatic start/resolution updates
+are visible in the report history.
 
 Administrator self-registration requires a server-side key. Set it in the
 backend terminal before starting Django; do not put it in frontend environment
@@ -82,8 +85,14 @@ do not require this key.
 ```powershell
 .\.venv\Scripts\python.exe manage.py test backend
 Set-Location frontend
+npm test
 npm run build
 ```
+
+The Django suite covers API workflows and isolated repair-lifecycle services.
+The frontend suite covers API request handling, errors, and pagination. Keep
+business workflow rules in backend services, HTTP/permission handling in
+viewsets, and shared network behavior in the frontend API module.
 
 ## Contributing
 

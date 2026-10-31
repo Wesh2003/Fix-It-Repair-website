@@ -5,6 +5,7 @@ import '../css/OperationsDashboard.css';
 
 function MaintananceStaffDashboardPage({ setIsAuthenticated, setUserRole }) {
   const [requests, setRequests] = useState([]);
+  const [progressNotes, setProgressNotes] = useState({});
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
@@ -69,8 +70,32 @@ function MaintananceStaffDashboardPage({ setIsAuthenticated, setUserRole }) {
     }
   };
 
+  const addProgressNote = async (event, request) => {
+    event.preventDefault();
+    const note = (progressNotes[request.id] || '').trim();
+    if (!note) {
+      setError('Enter a progress update before submitting.');
+      return;
+    }
+    setError('');
+    setUpdatingId(request.id);
+    try {
+      await apiRequest(`/repair-requests/${request.id}/progress/`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ note }),
+      });
+      setProgressNotes((previous) => ({ ...previous, [request.id]: '' }));
+      await loadRequests();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const activeCount = requests.filter((request) => request.status === 'in_progress').length;
-  const completedCount = requests.length - activeCount;
+  const completedCount = requests.filter((request) => request.status === 'completed').length;
 
   return (
     <main className="dashboard-page operations-page">
@@ -90,7 +115,7 @@ function MaintananceStaffDashboardPage({ setIsAuthenticated, setUserRole }) {
           <p>Update each job as work begins and mark it complete when resolved.</p>
         </div>
         <div className="operations-stats">
-          <article><span>Assigned jobs</span><strong>{requests.length}</strong></article>
+          <article><span>Assigned jobs</span><strong>{requests.filter((request) => request.status === 'assigned').length}</strong></article>
           <article><span>In progress</span><strong>{activeCount}</strong></article>
           <article><span>Resolved</span><strong>{completedCount}</strong></article>
         </div>
@@ -119,6 +144,40 @@ function MaintananceStaffDashboardPage({ setIsAuthenticated, setUserRole }) {
                   </div>
                   <p className="operations-meta">{request.location} · Priority: {request.priority}</p>
                   <p className="operations-meta">Reported by {request.customer_name || 'FixIt customer'}</p>
+                  {request.photo && (
+                    <a className="operations-photo-link" href={request.photo} target="_blank" rel="noreferrer">
+                      View attached photo
+                    </a>
+                  )}
+                  {request.progress_updates?.length > 0 && (
+                    <ul className="operations-progress-list" aria-label="Progress history">
+                      {request.progress_updates.map((update) => (
+                        <li key={update.id}>
+                          <span>{update.note}</span>
+                          <small>{update.author_name || 'Staff'} · {new Date(update.created_at).toLocaleString()}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {request.status === 'in_progress' && (
+                    <form className="operations-progress-form" onSubmit={(event) => addProgressNote(event, request)}>
+                      <label htmlFor={`progress-${request.id}`}>Add progress update</label>
+                      <textarea
+                        id={`progress-${request.id}`}
+                        value={progressNotes[request.id] || ''}
+                        onChange={(event) => setProgressNotes((previous) => ({
+                          ...previous,
+                          [request.id]: event.target.value,
+                        }))}
+                        maxLength="2000"
+                        rows="3"
+                        required
+                      />
+                      <button className="auth-submit" type="submit" disabled={updatingId === request.id}>
+                        {updatingId === request.id ? 'Saving…' : 'Add update'}
+                      </button>
+                    </form>
+                  )}
                   <div className="operations-actions">
                     {request.status === 'assigned' && (
                       <button
