@@ -85,8 +85,14 @@ do not require this key.
 ```powershell
 .\.venv\Scripts\python.exe manage.py test backend
 Set-Location frontend
+npm test
 npm run build
 ```
+
+The Django suite covers API workflows and isolated repair-lifecycle services.
+The frontend suite covers API request handling, errors, and pagination. Keep
+business workflow rules in backend services, HTTP/permission handling in
+viewsets, and shared network behavior in the frontend API module.
 
 ## Contributing
 

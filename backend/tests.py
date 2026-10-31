@@ -1,13 +1,101 @@
+from decimal import Decimal
 from io import BytesIO
 from tempfile import TemporaryDirectory
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from .models import (
     RepairProgressUpdate, RepairRequest, Service, StaffProfile, User,
 )
+from .services import (
+    InvalidRepairTransition,
+    add_repair_progress,
+    complete_repair,
+    start_repair,
+)
+
+
+class RepairWorkflowServiceTests(TestCase):
+    def setUp(self):
+        self.customer = User.objects.create_user(
+            username='workflow-customer',
+            password='Safe-password-123',
+            role='customer',
+        )
+        self.staff = User.objects.create_user(
+            username='workflow-staff',
+            password='Safe-password-123',
+            role='staff',
+        )
+        self.other_staff = User.objects.create_user(
+            username='other-workflow-staff',
+            password='Safe-password-123',
+            role='staff',
+        )
+        self.service = Service.objects.create(
+            name='Workflow repair',
+            description='Workflow test service',
+            base_price='0.00',
+        )
+        self.repair_request = RepairRequest.objects.create(
+            customer=self.customer,
+            service=self.service,
+            assigned_staff=self.staff,
+            status='assigned',
+            description='Test repair.',
+            location='Test location',
+        )
+
+    def test_start_repair_changes_state_and_records_progress_atomically(self):
+        start_repair(self.repair_request, self.staff)
+
+        self.repair_request.refresh_from_db()
+        self.assertEqual(self.repair_request.status, 'in_progress')
+        self.assertIsNotNone(self.repair_request.started_at)
+        self.assertEqual(
+            RepairProgressUpdate.objects.get().note,
+            'Work started.',
+        )
+
+    def test_unassigned_staff_cannot_start_repair(self):
+        with self.assertRaises(InvalidRepairTransition):
+            start_repair(self.repair_request, self.other_staff)
+
+        self.repair_request.refresh_from_db()
+        self.assertEqual(self.repair_request.status, 'assigned')
+        self.assertFalse(RepairProgressUpdate.objects.exists())
+
+    def test_progress_and_completion_require_an_in_progress_assignment(self):
+        with self.assertRaises(InvalidRepairTransition):
+            add_repair_progress(
+                self.repair_request,
+                self.staff,
+                'This must not be recorded yet.',
+            )
+
+        self.assertFalse(RepairProgressUpdate.objects.exists())
+        self.repair_request.status = 'in_progress'
+        self.repair_request.save(update_fields=['status'])
+
+        update = add_repair_progress(
+            self.repair_request,
+            self.staff,
+            'Work is progressing.',
+        )
+        complete_repair(self.repair_request, self.staff, '25.00')
+
+        self.repair_request.refresh_from_db()
+        self.assertEqual(self.repair_request.status, 'completed')
+        self.assertIsNotNone(self.repair_request.completed_at)
+        self.assertEqual(self.repair_request.final_cost, Decimal('25.00'))
+        self.assertEqual(
+            RepairProgressUpdate.objects.filter(repair_request=self.repair_request).count(),
+            2,
+        )
+        self.assertEqual(update.note, 'Work is progressing.')
 
 
 class StudentAccountAndRepairFlowTests(APITestCase):
